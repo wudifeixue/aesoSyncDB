@@ -1,14 +1,15 @@
 const axios = require('axios');
-const dayjs = require('dayjs');
+//const dayjs = require('dayjs');
 const { Client } = require('pg');
 const Papa = require('papaparse');
 
 // GET数据
 const fetchDataFromURL = async () => {
-  const beginDate = dayjs().format('MMDDYYYY');
-  const endDate = dayjs().add(1, 'day').format('MMDDYYYY');
+  //const beginDate = 10092023//dayjs().format('MMDDYYYY');
+  //const endDate = 10192023//dayjs().add(1, 'day').format('MMDDYYYY');
 
-  const url = `http://ets.aeso.ca/ets_web/ip/Market/Reports/HistoricalPoolPriceReportServlet?beginDate=${beginDate}&endDate=${endDate}&contentType=csv`;
+  //const urlHistory = `http://ets.aeso.ca/ets_web/ip/Market/Reports/HistoricalPoolPriceReportServlet?beginDate=${beginDate}&endDate=${endDate}&contentType=csv`;
+  const url = 'http://ets.aeso.ca/ets_web/ip/Market/Reports/SMPriceReportServlet?contentType=csv'
 
   try {
     const response = await axios.get(url);
@@ -63,9 +64,6 @@ const insertOrUpdateDatabase = async (entries) => {
         VALUES($1, $2, $3, $4)
         ON CONFLICT (date_hours_ending)
         DO UPDATE SET pool_price = EXCLUDED.pool_price, thirty_ravg = EXCLUDED.thirty_ravg, all_demand = EXCLUDED.all_demand
-        WHERE public.pool_price.pool_price <> EXCLUDED.pool_price OR 
-              public.pool_price.thirty_ravg <> EXCLUDED.thirty_ravg OR 
-              public.pool_price.all_demand <> EXCLUDED.all_demand
       `, [entry['Date (HE)'], parseFloat(entry['Price ($)']), parseFloat(entry['30Ravg ($)']), parseFloat(entry['AIL Demand (MW)'])]);
     }
   }
