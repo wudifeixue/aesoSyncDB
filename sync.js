@@ -1,6 +1,7 @@
 const axios = require('axios');
 const dayjs = require('dayjs');
 const { Client } = require('pg');
+const Papa = require('papaparse');
 
 // GET数据
 const fetchDataFromURL = async () => {
@@ -11,7 +12,6 @@ const fetchDataFromURL = async () => {
 
   try {
     const response = await axios.get(url);
-    //console.log(response.data)
     return response.data;
   } catch (error) {
     console.error(`Error fetching data from URL: ${error}`);
@@ -19,34 +19,26 @@ const fetchDataFromURL = async () => {
   }
 };
 
-// csvtojson清理CSV
-const cleanCSVData = (data) => {
-  const lines = data.split('\n');
-  // 删除开头的无关行，直到找到Date (HE)开始的行为止
-  while (lines.length && !lines[0].startsWith('Date (HE)')) {
-      lines.shift();
-  }
-  return lines.join('\n');
-};
+const cleanCSVData = async (data) => {
+    // 将CSV数据拆分为行
+    const lines = data.split('\r\n');
 
-const parseManualCSVData = (data) => {
-  const lines = data.trim().split('\n');
-  const headers = lines[0].split(',');
-  const entries = [];
-  
-  for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',');
-      const entry = {};
-      
-      for (let j = 0; j < headers.length; j++) {
-          entry[headers[j]] = values[j].replace(/"/g, '');
-      }
-      
-      entries.push(entry);
-  }
-  //console.log(entries)
-  return entries;
-};
+    // 使用数组的filter方法清除不需要的行
+    const cleanedLines = lines.filter(line => {
+        return line.trim() !== "" && line.trim() !== "Pool Price" && line.trim() !== '""';
+    });
+
+    // 重新组合为\n CSV并返回
+    return cleanedLines.join('\n');
+}
+
+const parseCSVData = async (cleanedCSV) => {
+  const results = Papa.parse(cleanedCSV, {
+      header: true,
+      delimiter: ','
+  });
+  return results.data;
+}
 
 // 插入数据到postgres
 const insertOrUpdateDatabase = async (entries) => {
@@ -65,23 +57,26 @@ const insertOrUpdateDatabase = async (entries) => {
   });
 
   for (const entry of entries) {
-    await client.query(`
-      INSERT INTO public.pool_price(date_hours_ending, pool_price, thirty_ravg, all_demand) 
-      VALUES($1, $2, $3, $4)
-      ON CONFLICT (date_hours_ending)
-      DO UPDATE SET pool_price = EXCLUDED.pool_price, thirty_ravg = EXCLUDED.thirty_ravg, all_demand = EXCLUDED.all_demand
-    `, [entry['Date (HE)'], parseFloat(entry['Price ($)']), parseFloat(entry['30Ravg ($)']), parseFloat(entry['AIL Demand (MW)'])]);
+    if (entry['Price ($)'] !== '-' && entry['30Ravg ($)'] !== '-' && entry['AIL Demand (MW)'] !== '-') {
+      await client.query(`
+        INSERT INTO public.pool_price(date_hours_ending, pool_price, thirty_ravg, all_demand) 
+        VALUES($1, $2, $3, $4)
+        ON CONFLICT (date_hours_ending)
+        DO UPDATE SET pool_price = EXCLUDED.pool_price, thirty_ravg = EXCLUDED.thirty_ravg, all_demand = EXCLUDED.all_demand
+        WHERE public.pool_price.pool_price <> EXCLUDED.pool_price OR 
+              public.pool_price.thirty_ravg <> EXCLUDED.thirty_ravg OR 
+              public.pool_price.all_demand <> EXCLUDED.all_demand
+      `, [entry['Date (HE)'], parseFloat(entry['Price ($)']), parseFloat(entry['30Ravg ($)']), parseFloat(entry['AIL Demand (MW)'])]);
+    }
   }
-
   await client.end();
 };
-
 
 const main = async () => {
   const rawData = await fetchDataFromURL();
   if (rawData) {
-    const cleanedData = cleanCSVData(rawData);
-    const parsedData = parseManualCSVData(cleanedData);
+    const cleanData = await cleanCSVData(rawData);
+    const parsedData = await parseCSVData(cleanData);
     await insertOrUpdateDatabase(parsedData);
     console.log('Data has been updated successfully.');
   } else {
