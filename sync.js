@@ -1,5 +1,5 @@
 const axios = require('axios');
-//const dayjs = require('dayjs');
+const dayjs = require('dayjs');
 const { Client } = require('pg');
 const Papa = require('papaparse');
 
@@ -76,9 +76,9 @@ const main = async () => {
     const cleanData = await cleanCSVData(rawData);
     const parsedData = await parseCSVData(cleanData);
     await insertOrUpdateDatabase(parsedData);
-    console.log('Data has been updated successfully.');
+    console.log(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' Data has been updated successfully.');
   } else {
-    console.error('Failed to update the data.');
+    console.error(dayjs().format('YYYY-MM-DD HH:mm:ss')+' Failed to update the data.');
   }
 };
 
