@@ -1,6 +1,10 @@
 # aesoSyncDB
 Getting [AESO](http://ets.aeso.ca/) pool price data and store it inside Postgres
 
+# Setup
+Create a configuration file named `dbConfig.json` and change the Postgres settings
+You can do so by make a copy of `dbConfig.example.json` and rename it
+
 # Run Script
 ```bash
 pnpm i

@@ -2,6 +2,7 @@ const axios = require('axios');
 const dayjs = require('dayjs');
 const { Client } = require('pg');
 const Papa = require('papaparse');
+const dbConfig = require('./dbConfig.json');
 
 // GET数据
 const fetchDataFromURL = async () => {
@@ -43,13 +44,7 @@ const parseCSVData = async (cleanedCSV) => {
 
 // 插入数据到postgres
 const insertOrUpdateDatabase = async (entries) => {
-  const client = new Client({
-    user: 'atiAdmin',
-    host: 'localhost',
-    database: 'ati-aesoDataGraph',
-    password: '321ewqdsacxz',
-    port: 5432,
-  });
+  const client = new Client(dbConfig);
 
   await client.connect()
   .catch(e => {

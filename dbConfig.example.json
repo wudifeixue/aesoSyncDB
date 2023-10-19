@@ -1,0 +1,7 @@
+{
+    "user": "postgres",
+    "host": "localhost",
+    "database": "ati-aesoDataGraph",
+    "password": "321ewqdsacxz",
+    "port": 5432
+}
