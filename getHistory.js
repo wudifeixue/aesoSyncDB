@@ -1,13 +1,15 @@
 const axios = require('axios');
 const dayjs = require('dayjs');
+const customParseFormat = require('dayjs/plugin/customParseFormat');
 const { Client } = require('pg');
 const Papa = require('papaparse');
+const dbConfig = require('./dbConfig.json');
 
 // GET数据
 const fetchDataFromURL = async () => {
   // change dates for historical data
-  const beginDate = 10092023//dayjs().format('MMDDYYYY');
-  const endDate = 10192023//dayjs().add(1, 'day').format('MMDDYYYY');
+  const beginDate = 10242023//dayjs().format('MMDDYYYY');
+  const endDate = 12142023//dayjs().add(1, 'day').format('MMDDYYYY');
   const urlHistory = `http://ets.aeso.ca/ets_web/ip/Market/Reports/HistoricalPoolPriceReportServlet?beginDate=${beginDate}&endDate=${endDate}&contentType=csv`;
 
   try {
@@ -40,15 +42,19 @@ const parseCSVData = async (cleanedCSV) => {
   return results.data;
 }
 
+dayjs.extend(customParseFormat);
+const parseDate = (entries) => {
+  for (const entry of entries) {
+    const format = 'MM/DD/YYYY HH';
+    entry['Date_Hours'] = dayjs(entry['Date (HE)'], format).toDate();
+  }
+  return entries;
+}
+
+
 // 插入数据到postgres
 const insertOrUpdateDatabase = async (entries) => {
-  const client = new Client({
-    user: 'postgres',
-    host: 'localhost',
-    database: 'ati-aesoDataGraph',
-    password: 'your_password',
-    port: 8088,
-  });
+  const client = new Client(dbConfig);
 
   await client.connect()
   .catch(e => {
@@ -59,11 +65,11 @@ const insertOrUpdateDatabase = async (entries) => {
   for (const entry of entries) {
     if (entry['Price ($)'] !== '-' && entry['30Ravg ($)'] !== '-' && entry['AIL Demand (MW)'] !== '-') {
       await client.query(`
-        INSERT INTO public.pool_price(date_hours_ending, pool_price, thirty_ravg, all_demand) 
-        VALUES($1, $2, $3, $4)
+        INSERT INTO public.pool_price(date_hours_ending, date_hours, pool_price, thirty_ravg, all_demand) 
+        VALUES($1, $2, $3, $4, $5)
         ON CONFLICT (date_hours_ending)
-        DO UPDATE SET pool_price = EXCLUDED.pool_price, thirty_ravg = EXCLUDED.thirty_ravg, all_demand = EXCLUDED.all_demand
-      `, [entry['Date (HE)'], parseFloat(entry['Price ($)']), parseFloat(entry['30Ravg ($)']), parseFloat(entry['AIL Demand (MW)'])]);
+        DO UPDATE SET date_hours = EXCLUDED.date_hours, pool_price = EXCLUDED.pool_price, thirty_ravg = EXCLUDED.thirty_ravg, all_demand = EXCLUDED.all_demand
+      `, [entry['Date (HE)'], entry['Date_Hours'], parseFloat(entry['Price ($)']), parseFloat(entry['30Ravg ($)']), parseFloat(entry['AIL Demand (MW)'])]);
     }
   }
   await client.end();
@@ -74,10 +80,11 @@ const main = async () => {
   if (rawData) {
     const cleanData = await cleanCSVData(rawData);
     const parsedData = await parseCSVData(cleanData);
-    await insertOrUpdateDatabase(parsedData);
-    console.log(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' History data has been updated successfully.');
+    const correctDate = parseDate(parsedData);
+    await insertOrUpdateDatabase(correctDate);
+    console.log(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' Data has been updated successfully.');
   } else {
-    console.error(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' Failed to update the history data.');
+    console.error(dayjs().format('YYYY-MM-DD HH:mm:ss')+' Failed to update the data.');
   }
 };
 
