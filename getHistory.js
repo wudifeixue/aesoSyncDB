@@ -8,8 +8,8 @@ const dbConfig = require('./dbConfig.json');
 // GET数据
 const fetchDataFromURL = async () => {
   // change dates for historical data
-  const beginDate = 10242023//dayjs().format('MMDDYYYY');
-  const endDate = 12142023//dayjs().add(1, 'day').format('MMDDYYYY');
+  const beginDate = '12202023'//dayjs().format('MMDDYYYY');
+  const endDate = '01022024'//dayjs().add(1, 'day').format('MMDDYYYY');
   const urlHistory = `http://ets.aeso.ca/ets_web/ip/Market/Reports/HistoricalPoolPriceReportServlet?beginDate=${beginDate}&endDate=${endDate}&contentType=csv`;
 
   try {
