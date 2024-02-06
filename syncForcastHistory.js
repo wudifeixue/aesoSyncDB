@@ -5,11 +5,9 @@ const { Client } = require('pg');
 const Papa = require('papaparse');
 const dbConfig = require('./dbConfig.json');
 
-// GET数据
-const fetchDataFromURL = async () => {
-  // change dates for historical data
-  const beginDate = '01022024'//dayjs().format('MMDDYYYY');
-  const endDate = '01042024'//dayjs().add(1, 'day').format('MMDDYYYY');
+dayjs.extend(customParseFormat);
+
+const fetchDataFromURL = async (beginDate, endDate) => {
   const urlHistory = `http://ets.aeso.ca/ets_web/ip/Market/Reports/ActualForecastWMRQHReportServlet?beginDate=${beginDate}&endDate=${endDate}&contentType=csv`;
 
   try {
@@ -25,10 +23,10 @@ const cleanCSVData = async (data) => {
   // 将CSV数据拆分为行
   const lines = data.split('\r\n');
 
-// 使用数组的filter方法清除不需要的行
-const cleanedLines = lines.filter(line => {
-  return line.trim() !== "" && line.trim() !== '""';
-});
+  // 使用数组的filter方法清除不需要的行
+  const cleanedLines = lines.filter(line => {
+    return line.trim() !== "" && line.trim() !== '""';
+  });
 
   const startIndex = cleanedLines.findIndex(line => line.includes('Date,Forecast Pool Price'));
   const processedLines = cleanedLines.slice(startIndex);
@@ -44,7 +42,6 @@ const parseCSVData = async (cleanedCSV) => {
   return results.data;
 }
 
-dayjs.extend(customParseFormat);
 const parseDate = (entries) => {
   for (const entry of entries) {
     const format = 'MM/DD/YYYY HH';
@@ -52,7 +49,6 @@ const parseDate = (entries) => {
   }
   return entries;
 }
-
 
 // 插入数据到postgres
 const insertOrUpdateDatabase = async (entries) => {
@@ -78,17 +74,36 @@ const insertOrUpdateDatabase = async (entries) => {
   await client.end();
 };
 
-const main = async () => {
-  const rawData = await fetchDataFromURL();
-  if (rawData) {
-    const cleanData = await cleanCSVData(rawData);
-    const parsedData = await parseCSVData(cleanData);
-    const correctDate = parseDate(parsedData);
-    await insertOrUpdateDatabase(correctDate);
-    console.log(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' Data has been updated successfully.');
-  } else {
-    console.error(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' Failed to update the data.');
+// 仅处理31天数据的请求
+const processBatchData = async (startDate, endDate) => {
+  const format = 'MMDDYYYY';
+  let currentStart = dayjs(startDate, format);
+  const end = dayjs(endDate, format);
+
+  while (currentStart.isBefore(end)) {
+    let currentEnd = currentStart.add(31, 'day').isAfter(end) ? end : currentStart.add(31, 'day');
+    let batchData = await fetchDataFromURL(currentStart.format(format), currentEnd.format(format));
+    if (batchData) {
+      const cleanData = await cleanCSVData(batchData);
+      const parsedData = await parseCSVData(cleanData);
+      const correctDate = parseDate(parsedData);
+      await insertOrUpdateDatabase(correctDate);
+      console.log(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' Data has been inserted successfully.');
+    } else {
+      console.error(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' Failed to update the data.');
+    }
   }
+  currentStart = currentEnd.add(1, 'day');
+};
+
+const main = async () => {
+  // 更改为所需的日期范围
+  const beginDate = '01012023'; // 开始日期
+  const endDate = '12312024'; // 结束日期
+
+  await processBatchData(beginDate, endDate); // 直接处理数据，无需获取原始数据
+
+  console.log(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' All data have been processed and inserted successfully.');
 };
 
 main();
