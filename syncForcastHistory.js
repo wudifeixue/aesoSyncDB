@@ -81,25 +81,28 @@ const processBatchData = async (startDate, endDate) => {
   const end = dayjs(endDate, format);
 
   while (currentStart.isBefore(end)) {
-    let currentEnd = currentStart.add(31, 'day').isAfter(end) ? end : currentStart.add(31, 'day');
-    let batchData = await fetchDataFromURL(currentStart.format(format), currentEnd.format(format));
+    let currentEnd = currentStart.add(31, 'day').subtract(1, 'day'); // 31天后的前一天，确保每批最多31天
+    if (currentEnd.isAfter(end)) {
+      currentEnd = end; // 如果计算的结束日期超过了用户指定的结束日期，则使用用户指定的结束日期
+    }
+    const batchData = await fetchDataFromURL(currentStart.format(format), currentEnd.format(format));
     if (batchData) {
       const cleanData = await cleanCSVData(batchData);
       const parsedData = await parseCSVData(cleanData);
       const correctDate = parseDate(parsedData);
       await insertOrUpdateDatabase(correctDate);
-      console.log(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' Data has been inserted successfully.');
+      console.log(dayjs(currentStart).format('YYYY-MM-DD') + ' to ' + dayjs(currentEnd).format('YYYY-MM-DD') + ' data has been inserted successfully.');
     } else {
-      console.error(dayjs().format('YYYY-MM-DD HH:mm:ss') + ' Failed to update the data.');
+      console.error(dayjs(currentStart).format('YYYY-MM-DD') + ' to ' + dayjs(currentEnd).format('YYYY-MM-DD') + ' failed to update the data.');
     }
+    currentStart = currentEnd.add(1, 'day'); // 正确地更新currentStart为下一个批次的开始日期
   }
-  currentStart = currentEnd.add(1, 'day');
 };
 
 const main = async () => {
   // 更改为所需的日期范围
-  const beginDate = '01012023'; // 开始日期
-  const endDate = '12312024'; // 结束日期
+  const beginDate = '01012022'; // 开始日期
+  const endDate = '06302023'; // 结束日期
 
   await processBatchData(beginDate, endDate); // 直接处理数据，无需获取原始数据
 
