@@ -7,10 +7,10 @@ You can do so by make a copy of `dbConfig.example.json` and rename it
 
 # Run Script
 ```bash
-pnpm i
-node sync.js
+npm i
+node syncForcast.js
 # or
-node getHistory.js
+node getForcastHistory.js
 # for import history
 ```
 
@@ -29,5 +29,5 @@ crontab -e
 - I have also attached logs for this script
 
 ```bash
-*/2 * * * * cd /home/ubuntu/aesoSyncDB && /usr/bin/node sync.js >> /home/ubuntu/aeso_logfile.log 2>> /home/ubuntu/aeso_error.log
+*/2 * * * * cd /home/ubuntu/aesoSyncDB && /usr/bin/node syncForcast.js >> /home/ubuntu/aeso_logfile.log 2>> /home/ubuntu/aeso_error.log
 ```
